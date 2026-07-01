@@ -4,6 +4,22 @@ A Magisk module that offloads WhatsApp (or any app's) `Android/media` folder fro
 
 Works on Android 10–12 with sdcardfs + FUSE. Tested on Samsung Galaxy S10e, OmniROM Android 12, kernel 4.14.
 
+## Does this work for my device?
+
+**Quick check — run this:**
+```bash
+adb shell grep sdcardfs /proc/filesystems
+```
+
+| Result | What it means | This module |
+|---|---|---|
+| `nodev  sdcardfs` | Your kernel has sdcardfs (Samsung, Sony, most OEM devices on Android ≤12) | **Works** |
+| _(no output)_ | Pure FUSE device — sdcardfs removed (Pixel, stock Android 13+) | **Does not work** — see below |
+
+### Pure FUSE devices (Pixel / stock Android 13+)
+
+On these devices, Android's MediaProvider runs its FUSE daemon in a **private mount namespace**, so mounts made in the global namespace never reach it. A different approach is needed: enter MediaProvider's namespace directly with `nsenter` and mount there. See [JanKanis's answer on Android SE](https://android.stackexchange.com/a/257404) for details.
+
 ---
 
 ## The problem
@@ -50,7 +66,7 @@ WhatsApp
 - SD card with a dedicated **ext4 partition** (minimum: size of your WhatsApp media)
 - `adb` access and basic comfort with a root shell
 
-> **Does not work on Pixel / pure FUSE devices** (no sdcardfs). On those, `/data/media` is served directly by the FUSE daemon and a different approach is needed.
+> **Does not work on Pixel / pure FUSE devices.** Check the [compatibility table](#does-this-work-for-my-device) at the top.
 
 ---
 
