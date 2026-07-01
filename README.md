@@ -277,3 +277,4 @@ To redirect a different app, change `APP_PKG` in `service.sh` and repeat Steps 3
 
 - [Android SE: Mounting portable SD card folder to internal folder (WhatsApp)](https://android.stackexchange.com/revisions/219678/2) — the post that identified the sdcardfs-stacking technique (Android 9, no FUSE). This repo adapts it for Android 12 FUSE mode.
 - [Linux mount namespaces and shared subtrees](https://www.kernel.org/doc/html/latest/filesystems/sharedsubtree.html) — explains peer groups and mount propagation.
+- [Stack Exchange on how to bind mount on later versions of android](https://android.stackexchange.com/questions/217741/how-to-bind-mount-a-folder-inside-sdcard-with-correct-permissions)
