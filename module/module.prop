@@ -1,0 +1,6 @@
+id=wa_sd_media
+name=WhatsApp SD Media
+version=v1
+versionCode=1
+author=guysoft
+description=Offloads WhatsApp media to an ext4 partition on SD card via sdcardfs stacking — no EXDEV
