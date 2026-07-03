@@ -19,8 +19,8 @@
 
 LOGFILE=/data/local/tmp/wa_sd_media.log
 EXT4_DEV=/dev/block/mmcblk0p2   # mmcblk0 = SD card on S10e (internal UFS = sda)
-EXT4_LABEL=WA_TEST               # partition label; change to match yours
-EXT4_MOUNT=/mnt/wa_ext4
+EXT4_LABEL=WA_MEDIA              # partition label; change to match yours
+EXT4_MOUNT=/mnt/wa_media
 APP_PKG=com.whatsapp             # change for a different app
 LOWER=$EXT4_MOUNT/$APP_PKG
 TARGET=/mnt/pass_through/0/emulated/0/Android/media/$APP_PKG

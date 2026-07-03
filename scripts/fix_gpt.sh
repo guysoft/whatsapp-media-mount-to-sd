@@ -9,10 +9,8 @@
 # Usage (run as root on the Android device):
 #   sh fix_gpt.sh
 #
-# The backup GPT LBA offset (249737215) is specific to a 128 GB card.
-# If your card is a different size, calculate it as:
-#   (card_size_in_bytes / 512) - 1
-# e.g. for 1 TB (1000204886016 bytes): 1000204886016/512 - 1 = 1953525167
+# The backup GPT LBA is the last sector of the disk.
+# Calculated dynamically so this script works on any card size.
 
 DEV=/dev/block/mmcblk0
 TMPF=/data/local/tmp/gpt_bak.bin
@@ -28,8 +26,8 @@ printf '\x55\xAA' | dd of=$DEV bs=1 seek=510 count=2 conv=notrunc 2>/dev/null \
 printf $SIG | dd of=$DEV bs=1 seek=512 count=8 conv=notrunc 2>/dev/null \
     && echo "2/4 Primary GPT sig: OK"
 
-# 3. Backup GPT header signature (last LBA — adjust for your card size)
-BACKUP_LBA=249737215   # 128 GB card; see comment above for other sizes
+# 3. Backup GPT header signature (last LBA, computed dynamically)
+BACKUP_LBA=$(( $(blockdev --getsize $DEV) - 1 ))
 dd if=$DEV of=$TMPF bs=512 skip=$BACKUP_LBA count=1 2>/dev/null
 printf $SIG | dd of=$TMPF bs=1 seek=0 count=8 conv=notrunc 2>/dev/null
 dd if=$TMPF of=$DEV bs=512 seek=$BACKUP_LBA count=1 conv=notrunc 2>/dev/null \

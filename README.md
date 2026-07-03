@@ -34,7 +34,7 @@ Instead of binding inside `/data/media`, this module mounts a **fresh sdcardfs i
 
 ```
 mount -t sdcardfs -o nosuid,nodev,noexec,noatime,mask=7,gid=9997 \
-    /mnt/wa_ext4/com.whatsapp \
+    /mnt/wa_media/com.whatsapp \
     /mnt/pass_through/0/emulated/0/Android/media/com.whatsapp
 ```
 
@@ -53,7 +53,7 @@ WhatsApp
        └─ MediaProvider reads via:
             /mnt/pass_through/0/emulated/0/Android/media/com.whatsapp
               └─ [this module stacks here]
-                   sdcardfs lower = /mnt/wa_ext4/com.whatsapp
+                    sdcardfs lower = /mnt/wa_media/com.whatsapp
                      └─ ext4 on mmcblk0p2 (SD card)
 ```
 
@@ -78,16 +78,15 @@ On a Linux host with the SD card inserted (e.g. as `/dev/sdc`):
 
 ```bash
 # Wipe and create GPT
-wipefs -a /dev/sdc
-parted /dev/sdc --script mklabel gpt
+sgdisk --zap-all /dev/sdc
 
 # Optional: keep an exFAT partition for normal file transfer
-parted /dev/sdc --script mkpart primary fat32 0% 40GB
+sgdisk -n 1:2048:-200G -t 1:0700 /dev/sdc
 mkfs.exfat -n SDCARD /dev/sdc1
 
-# ext4 partition for app media
-parted /dev/sdc --script mkpart primary ext4 40GB 100%
-mkfs.ext4 -L WA_TEST /dev/sdc2    # label must match EXT4_LABEL in service.sh
+# ext4 partition for app media (fills the rest)
+sgdisk -n 2:0:0 -t 2:8300 /dev/sdc
+mkfs.ext4 -L WA_MEDIA /dev/sdc2    # label must match EXT4_LABEL in service.sh
 
 partprobe /dev/sdc
 ```
@@ -103,7 +102,7 @@ adb push scripts/fix_gpt.sh /data/local/tmp/
 adb shell "su -c 'sh /data/local/tmp/fix_gpt.sh'"
 ```
 
-> The backup GPT LBA in `fix_gpt.sh` is calculated for a 128 GB card. Edit `BACKUP_LBA` for other sizes: `(card_bytes / 512) - 1`.
+`fix_gpt.sh` calculates the backup GPT LBA **dynamically** from the actual card size (`blockdev --getsize`), so it works on any SD card — no edits needed.
 
 After this, `mmcblk0p1` and `mmcblk0p2` should appear. Android will mount the exFAT partition automatically via vold.
 
@@ -111,21 +110,23 @@ After this, `mmcblk0p1` and `mmcblk0p2` should appear. Android will mount the ex
 
 ```bash
 adb shell "su -c '
-    mount -t ext4 /dev/block/mmcblk0p2 /mnt/wa_ext4
+    mount -t ext4 /dev/block/mmcblk0p2 /mnt/wa_media
 
     # Use rsync for resumability; fall back to cp -a if unavailable
-    rsync -a /data/media/0/Android/media/com.whatsapp/ /mnt/wa_ext4/com.whatsapp/
+    rsync -a /data/media/0/Android/media/com.whatsapp/ /mnt/wa_media/com.whatsapp/
 
     # Fix SELinux labels (cp -a and rsync do not copy xattrs to ext4)
-    chcon -R u:object_r:media_rw_data_file:s0 /mnt/wa_ext4/com.whatsapp
+    chcon -R u:object_r:media_rw_data_file:s0 /mnt/wa_media/com.whatsapp
 '"
 ```
 
 > **Note:** `cp -a` silently drops SELinux xattrs on ext4. Always run `chcon` after copying or files will have `unlabeled` context and be inaccessible.
+>
+> **Faster alternative:** If you have a card reader on a Linux host, mount both the source and destination ext4 partitions and use `rsync -aX` — the `-X` flag preserves SELinux xattrs directly, so no `chcon` step is needed.
 
 Verify the copy:
 ```bash
-adb shell "su -c 'du -sh /mnt/wa_ext4/com.whatsapp; ls /mnt/wa_ext4/com.whatsapp/WhatsApp/'"
+adb shell "su -c 'du -sh /mnt/wa_media/com.whatsapp; ls /mnt/wa_media/com.whatsapp/WhatsApp/'"
 ```
 
 ### Step 4 — Create the stub mount target on internal storage
@@ -157,8 +158,10 @@ adb shell "su -c 'chmod 755 /data/adb/modules/wa_sd_media/service.sh /data/adb/m
 
 Edit `module/service.sh` before pushing if needed:
 - `EXT4_DEV` — block device for your ext4 partition (default: `/dev/block/mmcblk0p2`)
-- `EXT4_LABEL` — partition label (default: `WA_TEST`)
+- `EXT4_LABEL` — partition label (default: `WA_MEDIA`)
 - `APP_PKG` — app package name (default: `com.whatsapp`)
+
+> **The `EXT4_LABEL` must match the label you gave the ext4 partition with `mkfs.ext4 -L`.** This is the only value that differs per card setup. `fix_gpt.sh` is card-size-agnostic (calculates backup LBA dynamically).
 
 ### Step 6 — Reboot and verify
 
@@ -174,10 +177,10 @@ HH:MM:SS === wa_sd_media service.sh start ===
 HH:MM:SS Sleeping 15s for boot settle...
 HH:MM:SS Awake.
 HH:MM:SS Waiting for /dev/block/mmcblk0p2...
-HH:MM:SS Confirmed /dev/block/mmcblk0p2 LABEL=WA_TEST
-HH:MM:SS Mounted /dev/block/mmcblk0p2 at /mnt/wa_ext4
+HH:MM:SS Confirmed /dev/block/mmcblk0p2 LABEL=WA_MEDIA
+HH:MM:SS Mounted /dev/block/mmcblk0p2 at /mnt/wa_media
 HH:MM:SS Waiting for /mnt/pass_through/0/emulated/0/Android/media/com.whatsapp...
-HH:MM:SS OK: sdcardfs stack /mnt/wa_ext4/com.whatsapp -> /mnt/pass_through/...
+HH:MM:SS OK: sdcardfs stack /mnt/wa_media/com.whatsapp -> /mnt/pass_through/...
 HH:MM:SS === wa_sd_media done ===
 ```
 
@@ -196,9 +199,9 @@ adb shell "su -c 'rm -rf /data/media/0/Android/media/com.whatsapp.orig'"
 1. **Sleep 15 s** — Magisk fires at `boot_completed` while the shell context is still unstable; this clears the race.
 2. **Poll for `/dev/block/mmcblk0p2`** — waits up to 45 s for the SD card block device to appear.
 3. **Verify partition label** — `blkid` on the specific device (fast, no full-disk scan).
-4. **Mount ext4** at `/mnt/wa_ext4` (idempotent).
+4. **Mount ext4** at `/mnt/wa_media` (idempotent).
 5. **Poll for `pass_through` mountpoint** — waits for sdcardfs to be fully up.
-6. **Stack sdcardfs** — mounts a fresh sdcardfs instance (`lower=/mnt/wa_ext4/com.whatsapp`) on `/mnt/pass_through/0/emulated/0/Android/media/com.whatsapp`.
+6. **Stack sdcardfs** — mounts a fresh sdcardfs instance (`lower=/mnt/wa_media/com.whatsapp`) on `/mnt/pass_through/0/emulated/0/Android/media/com.whatsapp`.
 7. Mount propagates via shared peer-group-44 to all runtime views and FUSE.
 
 If the SD card is absent, the module exits cleanly. WhatsApp will show an empty media directory (the stub created in Step 4) but nothing breaks.
@@ -211,7 +214,7 @@ If the SD card is absent, the module exits cleanly. WhatsApp will show an empty 
 adb shell "su -c '
     # Unmount the stack
     umount /mnt/pass_through/0/emulated/0/Android/media/com.whatsapp
-    umount /mnt/wa_ext4
+    umount /mnt/wa_media
 
     # Restore original media
     rm -rf /data/media/0/Android/media/com.whatsapp
@@ -239,16 +242,16 @@ umount /data/media/0/Android/media/com.whatsapp
 Then re-run the sdcardfs stack mount from Step 6.
 
 **Files on ext4 show as `unlabeled` in SELinux**  
-Run: `chcon -R u:object_r:media_rw_data_file:s0 /mnt/wa_ext4/com.whatsapp`
+Run: `chcon -R u:object_r:media_rw_data_file:s0 /mnt/wa_media/com.whatsapp`
 
 **`mmcblk0p1`/`mmcblk0p2` not appearing after SD card insert**  
 Android vold zeroed the GPT signatures. Run `scripts/fix_gpt.sh` (see Step 2).
 
-**Module log shows `LABEL!=WA_TEST`**  
+**Module log shows `LABEL!=WA_MEDIA`**  
 The ext4 partition label doesn't match. Either re-label the partition:
 ```bash
 # on host:
-e2label /dev/sdX2 WA_TEST
+e2label /dev/sdX2 WA_MEDIA
 ```
 or update `EXT4_LABEL` in `service.sh` to match your existing label.
 
