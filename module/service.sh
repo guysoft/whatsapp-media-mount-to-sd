@@ -99,3 +99,20 @@ if [ $RC -ne 0 ]; then
 fi
 log "OK: sdcardfs stack $LOWER -> $TARGET (propagates to all peer-group-44 mounts)"
 log "=== wa_sd_media done ==="
+
+# --- 6. Launch watchdog (self-heal after silent resets) ---
+# Samsung Device Care restarts system_server/MediaProvider WITHOUT a kernel
+# reboot ("silent reset"), which tears down the stacked mount. service.sh only
+# runs at boot, so nothing re-mounts it until the next reboot — the app falls
+# back to the internal stub and media appears missing. watchdog.sh polls the
+# stack, merges stub-only files back (additive, no-clobber) and re-stacks.
+if [ -x "${0%/*}/watchdog.sh" ]; then
+    if pgrep -f "watchdog.sh" >/dev/null 2>&1; then
+        log "watchdog already running"
+    else
+        nohup sh "${0%/*}/watchdog.sh" >/dev/null 2>&1 &
+        log "watchdog launched (pid $!)"
+    fi
+else
+    log "WARN: watchdog.sh missing — silent resets will break the stack"
+fi

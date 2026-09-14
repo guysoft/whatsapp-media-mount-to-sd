@@ -149,7 +149,7 @@ adb shell "su -c '
 ```bash
 # Push module files to a staging area
 adb shell "su -c 'mkdir -p /data/adb/modules/wa_sd_media'"
-for f in module/module.prop module/service.sh module/post-fs-data.sh module/skip_mount; do
+for f in module/module.prop module/service.sh module/post-fs-data.sh module/skip_mount module/watchdog.sh; do
     adb push $f /data/local/tmp/$(basename $f)
     adb shell "su -c 'cp /data/local/tmp/$(basename $f) /data/adb/modules/wa_sd_media/$(basename $f)'"
 done
@@ -203,6 +203,7 @@ adb shell "su -c 'rm -rf /data/media/0/Android/media/com.whatsapp.orig'"
 5. **Poll for `pass_through` mountpoint** — waits for sdcardfs to be fully up.
 6. **Stack sdcardfs** — mounts a fresh sdcardfs instance (`lower=/mnt/wa_media/com.whatsapp`) on `/mnt/pass_through/0/emulated/0/Android/media/com.whatsapp`.
 7. Mount propagates via shared peer-group-44 to all runtime views and FUSE.
+8. **Launch `watchdog.sh`** — a background monitor that polls `/proc/1/mountinfo` every 30 s. If the stack disappears (e.g. after a Device Care silent reset), it re-merges any stub-only media to the ext4 partition (`cp -an`, additive-only) and re-stacks the mount, healing within one poll cycle. See [Troubleshooting](#troubleshooting) for details.
 
 If the SD card is absent, the module exits cleanly. WhatsApp will show an empty media directory (the stub created in Step 4) but nothing breaks.
 
@@ -230,6 +231,23 @@ adb reboot
 ---
 
 ## Troubleshooting
+
+**Media goes missing some time after boot, without a reboot**  
+Samsung **Device Care** (and similar OEM optimizers) periodically restarts `system_server` and MediaProvider *without a kernel reboot* — a "silent reset" (visible in `/data/system/dropbox/` as `system_server_crash` / `SYSTEM_RESTART` with `"NPE by silent reset. It's normal operation caused by device care"`). The storage mount tree is re-created, the stacked sdcardfs mount vanishes, and since `service.sh` only runs at boot, the app silently falls back to the internal stub — old media disappears and **new downloads land only on the stub (split-brain)**. The module now ships a watchdog that detects this within ~30s, merges stub-only files back to the SD ext4 partition (`cp -an`, additive-only, nothing overwritten) and re-stacks the mount:
+
+```bash
+tail /data/local/tmp/wa_sd_media.log     # look for "[watchdog] STACK LOST — healing..."
+```
+
+Check it is running with `pgrep -f watchdog.sh` (started automatically by `service.sh`). To test it, unmount the stack and wait one poll cycle:
+
+```bash
+su -mm -c 'umount /mnt/pass_through/0/emulated/0/Android/media/com.whatsapp'
+# within WATCHDOG_INTERVAL (default 30s) the log shows: HEALED
+```
+
+**Manual mounts done with plain `su -c` are invisible to apps**  
+Magisk gives every `su` request its own mount namespace unless you pass `--mount-master`. If you re-run `service.sh` or mount anything by hand, always use `su -mm -c '...'` — a plain `su` lands the stack in a private namespace that neither pid 1, MediaProvider, nor the app will ever see.
 
 **"media file does not exist" in WhatsApp after reboot**  
 Check the log (`cat /data/local/tmp/wa_sd_media.log`). If it shows only `start` with nothing after, the boot-time shell was killed before the module ran. Try increasing the `sleep` value at the top of `service.sh` from 15 to 20 or 25.
