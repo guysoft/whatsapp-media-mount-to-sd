@@ -1,6 +1,6 @@
 id=wa_sd_media
 name=WhatsApp SD Media
-version=v1
-versionCode=1
+version=v2.2-android16
+versionCode=3
 author=guysoft
-description=Offloads WhatsApp media to an ext4 partition on SD card via sdcardfs stacking — no EXDEV
+description=Offloads an app's Android/media folder to an ext4 partition on SD card. v1 stacked sdcardfs (Android <=12). v2 enters MediaProvider's mount namespace with nsenter for pure-FUSE Android 13+, event-driven rebind on provider restart, self-healing GPT repair.
