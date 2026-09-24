@@ -3,7 +3,7 @@
 A Magisk module that offloads WhatsApp (or any app's) `Android/media` folder from full internal storage to a dedicated **ext4 partition on an SD card**, with full read/write support.
 
 Two techniques, selected automatically by what your device supports:
-- **Android 10–12 (sdcardfs + FUSE):** stack a fresh `sdcardfs` instance on the `pass_through` path. Tested on Samsung Galaxy S10e, OmniROM Android 12, kernel 4.14.
+- **Android 10–12 (sdcardfs + FUSE):** stack a fresh `sdcardfs` instance on the `pass_through` path. Tested on Samsung Galaxy S10e, Ambasadii ROM (Android 12, OneUI 4.1), kernel 4.14.
 - **Android 13+ / pure FUSE:** enter MediaProvider's mount namespace with `nsenter` and bind the SD tree there. Tested on Sony Xperia 10 VII (pdx257), stock Android 16, kernel 6.6, Magisk.
 
 ## Does this work for my device?
@@ -318,7 +318,7 @@ To redirect a different app, change `APP_PKG` in `service.sh` and repeat Steps 3
 | Component | v1 (sdcardfs) | v2 (pure FUSE) |
 |---|---|---|
 | Device | Samsung Galaxy S10e SM-G970F | Sony Xperia 10 VII XQ-FE72 (pdx257) |
-| ROM | OmniROM Android 12 | Stock Sony Android 16 |
+| ROM | Ambasadii ROM (Android 12, OneUI 4.1) | Stock Sony Android 16 |
 | Kernel | 4.14.113-AmbasadiiCruel-v6.8 (open source) | 6.6.142 (custom, open source) |
 | Magisk | 27+ | 30.7 |
 | Storage mode | `persist.sys.fuse=true` (FUSE + sdcardfs hybrid) | Pure FUSE (no sdcardfs) |

@@ -15,7 +15,7 @@
 #     its own mount namespace, where /storage/emulated is the raw backing fs. We bind the SD tree
 #     INSIDE that namespace with nsenter.
 #
-# Verified: Samsung Galaxy S10e / OmniROM Android 12 / kernel 4.14 (sdcardfs path);
+# Verified: Samsung Galaxy S10e / Ambasadii ROM (Android 12, OneUI 4.1) / kernel 4.14 (sdcardfs path);
 #           Sony Xperia 10 VII (pdx257) / stock Android 16 / kernel 6.6 (pure-FUSE path).
 
 MODDIR=/data/adb/modules/wa_sd_media
